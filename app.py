@@ -7,6 +7,7 @@ A Flask-based chat application that uses DeepSeek API for intelligent responses.
 import os
 import sys
 from typing import Dict, Any
+import time
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -23,11 +24,17 @@ app = Flask(__name__)
 # 配置 requests 会话
 session = requests.Session()
 retry_strategy = Retry(
-    total=3,
-    backoff_factor=1,
-    status_forcelist=[429, 500, 502, 503, 504],
+    total=5,  # 增加重试次数
+    backoff_factor=0.5,  # 减小退避因子使重试更快
+    status_forcelist=[408, 429, 500, 502, 503, 504],  # 添加 408 超时状态码
+    allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"],  # 允许 POST 重试
+    respect_retry_after_header=True
 )
-adapter = HTTPAdapter(max_retries=retry_strategy)
+adapter = HTTPAdapter(
+    max_retries=retry_strategy,
+    pool_connections=10,
+    pool_maxsize=10
+)
 session.mount("https://", adapter)
 
 # 手动处理 CORS
@@ -147,14 +154,25 @@ def chat():
         
         payload = create_chat_payload(user_message)
 
-        response = session.post(
-            DEEPSEEK_API_URL,
-            headers=headers,
-            json=payload,
-            timeout=30,
-            verify=True
-        )
-        response.raise_for_status()
+        # 添加重试逻辑
+        max_retries = 3
+        retry_delay = 1
+        for attempt in range(max_retries):
+            try:
+                response = session.post(
+                    DEEPSEEK_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=(10, 90),  # (连接超时, 读取超时)
+                    verify=True
+                )
+                response.raise_for_status()
+                break
+            except (requests.exceptions.ReadTimeout, requests.exceptions.ConnectionError) as e:
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(retry_delay)
+                retry_delay *= 2
         
         result = response.json()
         assistant_message = result['choices'][0]['message']['content']
@@ -166,6 +184,10 @@ def chat():
     except requests.exceptions.SSLError as e:
         app.logger.warning(f"SSL Error: {str(e)}")
         return jsonify({'error': 'SSL 连接错误，请稍后重试'}), 503
+
+    except requests.exceptions.ReadTimeout as e:
+        app.logger.warning(f"Timeout Error: {str(e)}")
+        return jsonify({'error': '请求超时，请稍后重试'}), 504
 
     except requests.exceptions.RequestException as e:
         app.logger.warning(f"API request error: {str(e)}")
