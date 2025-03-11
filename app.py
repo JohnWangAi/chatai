@@ -31,12 +31,13 @@ adapter = HTTPAdapter(max_retries=retry_strategy)
 session.mount("https://", adapter)
 
 # 手动处理 CORS
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
     return response
+
+app.after_request(add_cors_headers)
 
 # API 配置
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
@@ -132,17 +133,19 @@ def home():
     try:
         return render_template('index.html')
     except Exception as e:
-        app.logger.error(f"Error rendering template: {str(e)}")
+        app.logger.warning(f"Error rendering template: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/chat', methods=['POST', 'OPTIONS'])
 def chat():
     """处理聊天请求"""
     if request.method == 'OPTIONS':
-        return make_response('', 204)
+        response = make_response('')
+        response.status_code = 204
+        return response
 
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({'error': '无效的请求数据'}), 400
             
@@ -177,20 +180,20 @@ def chat():
         })
 
     except requests.exceptions.SSLError as e:
-        app.logger.error(f"SSL Error: {str(e)}")
+        app.logger.warning(f"SSL Error: {str(e)}")
         return jsonify({'error': 'SSL 连接错误，请稍后重试'}), 503
 
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"API request error: {str(e)}")
+        app.logger.warning(f"API request error: {str(e)}")
         return jsonify({'error': f"API 请求错误: {str(e)}"}), 503
         
     except Exception as e:
-        app.logger.error(f"Server error: {str(e)}")
+        app.logger.warning(f"Server error: {str(e)}")
         return jsonify({'error': f"服务器错误: {str(e)}"}), 500
 
 # 应用配置
-app.config['ENV'] = 'production'
-app.config['DEBUG'] = False
+app.debug = False
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000))) 
+    port = int(os.getenv('PORT', 8000))
+    app.run(host='0.0.0.0', port=port) 
