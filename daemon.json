@@ -1,0 +1,12 @@
+{
+  "registry-mirrors": [
+    "https://mirror.ccs.tencentyun.com",
+    "https://registry.docker-cn.com",
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://registry.cn-hangzhou.aliyuncs.com"
+  ],
+  "max-concurrent-downloads": 10,
+  "max-concurrent-uploads": 5,
+  "mtu": 1400,
+  "dns": ["8.8.8.8", "8.8.4.4"]
+} 
