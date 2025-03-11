@@ -5,9 +5,12 @@ A Flask-based chat application that uses DeepSeek API for intelligent responses.
 """
 
 import os
+import sys
 from typing import Dict, Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from flask import Flask, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 
@@ -16,6 +19,16 @@ load_dotenv()
 
 # Flask 应用初始化
 app = Flask(__name__)
+
+# 配置 requests 会话
+session = requests.Session()
+retry_strategy = Retry(
+    total=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("https://", adapter)
 
 # 手动处理 CORS
 @app.after_request
@@ -116,23 +129,32 @@ def create_chat_payload(message: str) -> Dict[str, Any]:
 @app.route('/')
 def home():
     """渲染主页"""
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        app.logger.error(f"Error rendering template: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['POST', 'OPTIONS'])
 def chat():
-    """
-    处理聊天请求
-    
-    Returns:
-        JSON 响应，包含 AI 的回复或错误信息
-    """
+    """处理聊天请求"""
+    # 处理 OPTIONS 请求
+    if request.method == 'OPTIONS':
+        return make_response('', 204)
+
     try:
         # 获取并验证用户输入
-        data = request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '无效的请求数据'}), 400
+            
         user_message = data.get('message')
-        
         if not user_message:
             return jsonify({'error': '消息不能为空'}), 400
+
+        # 验证 API 密钥
+        if not DEEPSEEK_API_KEY:
+            return jsonify({'error': 'API 密钥未配置'}), 500
 
         # 准备请求数据
         headers = {
@@ -144,10 +166,12 @@ def chat():
         payload = create_chat_payload(user_message)
 
         # 发送请求到 DeepSeek API
-        response = requests.post(
+        response = session.post(
             DEEPSEEK_API_URL,
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=30,
+            verify=True  # 启用 SSL 验证
         )
         response.raise_for_status()
         
@@ -159,23 +183,20 @@ def chat():
             'response': assistant_message
         })
 
+    except requests.exceptions.SSLError as e:
+        app.logger.error(f"SSL Error: {str(e)}")
+        return jsonify({'error': 'SSL 连接错误，请稍后重试'}), 503
+
     except requests.exceptions.RequestException as e:
-        # 处理 API 请求错误
-        error_message = f"API 请求错误: {str(e)}"
-        return jsonify({'error': error_message}), 503
+        app.logger.error(f"API request error: {str(e)}")
+        return jsonify({'error': f"API 请求错误: {str(e)}"}), 503
         
     except Exception as e:
-        # 处理其他未预期的错误
-        error_message = f"服务器错误: {str(e)}"
-        return jsonify({'error': error_message}), 500
+        app.logger.error(f"Server error: {str(e)}")
+        return jsonify({'error': f"服务器错误: {str(e)}"}), 500
+
+# Vercel 需要的处理程序
+app.debug = False
 
 if __name__ == '__main__':
-    # 确保 API 密钥已设置
-    if not DEEPSEEK_API_KEY:
-        raise ValueError("请设置 DEEPSEEK_API_KEY 环境变量")
-    
-    print(f"Using API URL: {DEEPSEEK_API_URL}")
-    print(f"Using Model: {DEFAULT_MODEL_CONFIG['model']}")
-    
-    # 启动应用
-    app.run(debug=True) 
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000))) 
