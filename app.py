@@ -31,7 +31,7 @@ def chat():
         }
         
         payload = {
-            'model': 'deepseek-reasoner',
+            'model': 'deepseek-chat',
             'messages': [
                 {
                     'role': 'system',
