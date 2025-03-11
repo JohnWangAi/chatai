@@ -28,7 +28,7 @@
    ```bash
    python app.py
    ```
-3. 在浏览器中访问 `http://localhost:5000`
+3. 在浏览器中访问 `http://localhost:8000`
 
 ## 注意事项
 
