@@ -8,7 +8,7 @@ import os
 from typing import Dict, Any
 
 import requests
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -16,6 +16,14 @@ load_dotenv()
 
 # Flask 应用初始化
 app = Flask(__name__)
+
+# 手动处理 CORS
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # API 配置
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
@@ -165,6 +173,9 @@ if __name__ == '__main__':
     # 确保 API 密钥已设置
     if not DEEPSEEK_API_KEY:
         raise ValueError("请设置 DEEPSEEK_API_KEY 环境变量")
-        
+    
+    print(f"Using API URL: {DEEPSEEK_API_URL}")
+    print(f"Using Model: {DEFAULT_MODEL_CONFIG['model']}")
+    
     # 启动应用
     app.run(debug=True) 
