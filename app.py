@@ -11,7 +11,7 @@ from typing import Dict, Any
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from flask import Flask, render_template, request, jsonify, make_response
+from flask import Flask, render_template, request, jsonify, make_response, current_app
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -40,7 +40,7 @@ def after_request(response):
 
 # API 配置
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_API_URL = "https://api.deepseek.ai/v1/chat/completions"
 
 # 系统提示配置
 SYSTEM_PROMPT = '''你是一个专业的分析专家。请按照以下结构化格式展示你的分析和决策过程：
@@ -132,18 +132,16 @@ def home():
     try:
         return render_template('index.html')
     except Exception as e:
-        app.logger.error(f"Error rendering template: {str(e)}")
+        current_app.logger.error(f"Error rendering template: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/chat', methods=['POST', 'OPTIONS'])
 def chat():
     """处理聊天请求"""
-    # 处理 OPTIONS 请求
     if request.method == 'OPTIONS':
         return make_response('', 204)
 
     try:
-        # 获取并验证用户输入
         data = request.get_json()
         if not data:
             return jsonify({'error': '无效的请求数据'}), 400
@@ -152,30 +150,25 @@ def chat():
         if not user_message:
             return jsonify({'error': '消息不能为空'}), 400
 
-        # 验证 API 密钥
         if not DEEPSEEK_API_KEY:
             return jsonify({'error': 'API 密钥未配置'}), 500
 
-        # 准备请求数据
         headers = {
             'Authorization': f'Bearer {DEEPSEEK_API_KEY}',
             'Content-Type': 'application/json'
         }
         
-        # 创建请求负载
         payload = create_chat_payload(user_message)
 
-        # 发送请求到 DeepSeek API
         response = session.post(
             DEEPSEEK_API_URL,
             headers=headers,
             json=payload,
             timeout=30,
-            verify=True  # 启用 SSL 验证
+            verify=True
         )
         response.raise_for_status()
         
-        # 解析响应
         result = response.json()
         assistant_message = result['choices'][0]['message']['content']
         
@@ -184,19 +177,25 @@ def chat():
         })
 
     except requests.exceptions.SSLError as e:
-        app.logger.error(f"SSL Error: {str(e)}")
+        current_app.logger.error(f"SSL Error: {str(e)}")
         return jsonify({'error': 'SSL 连接错误，请稍后重试'}), 503
 
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"API request error: {str(e)}")
+        current_app.logger.error(f"API request error: {str(e)}")
         return jsonify({'error': f"API 请求错误: {str(e)}"}), 503
         
     except Exception as e:
-        app.logger.error(f"Server error: {str(e)}")
+        current_app.logger.error(f"Server error: {str(e)}")
         return jsonify({'error': f"服务器错误: {str(e)}"}), 500
 
-# Vercel 需要的处理程序
-app.debug = False
+# 应用配置
+app.config.update(
+    ENV='production',
+    DEBUG=False
+)
+
+# 创建应用上下文
+app.app_context().push()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 8000))) 
