@@ -19,7 +19,7 @@ app = Flask(__name__)
 
 # API 配置
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+DEEPSEEK_API_URL = "https://api.deepseek.ai/v1/chat/completions"  # 更新为正确的 API 域名
 
 # 系统提示配置
 SYSTEM_PROMPT = '''你是一个专业的分析专家。请按照以下结构化格式展示你的分析和决策过程：
@@ -76,7 +76,7 @@ SYSTEM_PROMPT = '''你是一个专业的分析专家。请按照以下结构化�
 
 # API 配置
 DEFAULT_MODEL_CONFIG = {
-    'model': 'deepseek-reasoner',
+    'model': 'deepseek-chat',  # 更新为正确的模型名称
     'temperature': 0.7,
     'max_tokens': 2000
 }
@@ -139,8 +139,14 @@ def chat():
         response = requests.post(
             DEEPSEEK_API_URL,
             headers=headers,
-            json=payload
+            json=payload,
+            timeout=30  # 添加超时设置
         )
+        
+        # 打印调试信息
+        print(f"API Response Status: {response.status_code}")
+        print(f"API Response: {response.text}")
+        
         response.raise_for_status()
         
         # 解析响应
@@ -154,17 +160,22 @@ def chat():
     except requests.exceptions.RequestException as e:
         # 处理 API 请求错误
         error_message = f"API 请求错误: {str(e)}"
+        print(f"API Error: {error_message}")
         return jsonify({'error': error_message}), 503
         
     except Exception as e:
         # 处理其他未预期的错误
         error_message = f"服务器错误: {str(e)}"
+        print(f"Server Error: {error_message}")
         return jsonify({'error': error_message}), 500
 
 if __name__ == '__main__':
     # 确保 API 密钥已设置
     if not DEEPSEEK_API_KEY:
         raise ValueError("请设置 DEEPSEEK_API_KEY 环境变量")
-        
+    
+    print(f"Using API URL: {DEEPSEEK_API_URL}")
+    print(f"Using Model: {DEFAULT_MODEL_CONFIG['model']}")
+    
     # 启动应用
     app.run(debug=True) 
