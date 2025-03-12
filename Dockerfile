@@ -46,7 +46,7 @@ COPY templates ./templates
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 暴露端口
-EXPOSE 5000
+EXPOSE 8000
 
 # 启动命令
 CMD ["python", "app.py"] 
