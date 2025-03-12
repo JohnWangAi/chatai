@@ -39,11 +39,12 @@ docker build -t deepseek-chat-app .
 使用以下命令运行容器（将 YOUR_API_KEY 替换为你的实际 API 密钥）：
 
 ```bash
-docker run -d -p 8000:8000 -e DEEPSEEK_API_KEY=YOUR_API_KEY deepseek-chat-app
+docker run -d -p 8000:8000 --name chatbot -e DEEPSEEK_API_KEY=YOUR_API_KEY deepseek-chat-app
 ```
 
 命令说明：
 - `-d`: 在后台运行容器
+- `--name`: 指定容器名称 
 - `-p 8000:8000`: 将容器的 8000 端口映射到主机的 8000 端口
 - `-e DEEPSEEK_API_KEY=YOUR_API_KEY`: 设置环境变量
 
