@@ -117,7 +117,7 @@ SYSTEM_PROMPT = '''你是一个专业的技术导师，专注于帮助开发者�
 
 # API 配置
 DEFAULT_MODEL_CONFIG = {
-    'model': 'deepseek-reasoner',
+    'model': 'deepseek-chat',
     'temperature': 0.7,
     'max_tokens': 2000
 }
